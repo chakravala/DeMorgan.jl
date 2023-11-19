@@ -2,25 +2,25 @@
 
 *Classical logic truth table magma algebra*
 
-Truth table expressed as an algebraic magma with operations `¬`, `∧`, `∧`, `-->`, `<--`, `<-->`.
+Truth table expressed as an algebraic magma with operations `¬`, `∧`, `∨`, `→`, `←`, `↔` or alternatively `!`, `&`, `|`, `-->`, `<--`, `<-->`.
 Based on classical logic with `TruthValues{N}` and `TruthTable{N,M}`, the `@truthtable` macro assigns named variable propositional projections as generators of the truth.
 When `using DeMorgan` together with `PrettyTables`, the output is automatically formatted.
 
 ```Julia
 julia> using DeMorgan, PrettyTables
 
-julia> @truthtable p
+julia> @truthtable p q
 
-julia> ¬¬(¬¬p∧¬p)
-┌─────────┬──────┬──────────────────────┬───────────────────┐
-│       p │ ¬(p) │                    ⊥ │                 ⊤ │
-│ ¬(¬(p)) │      │       (¬(¬(p)))∧¬(p) │ ¬((¬(¬(p)))∧¬(p)) │
-│         │      │ ¬(¬((¬(¬(p)))∧¬(p))) │                   │
-├─────────┼──────┼──────────────────────┼───────────────────┤
-│       1 │    0 │                    0 │                 1 │
-│       0 │    1 │                    0 │                 1 │
-└─────────┴──────┴──────────────────────┴───────────────────┘
-
+julia> (p-->q)<-->(¬q-->¬p)
+┌───┬───┬───────────┬──────┬──────┬───────────────────┐
+│ p │ q │       p→q │ ¬(q) │ ¬(p) │                 ⊤ │
+│   │   │ ¬(q)→¬(p) │      │      │ (p→q)↔(¬(q)→¬(p)) │
+├───┼───┼───────────┼──────┼──────┼───────────────────┤
+│ 1 │ 1 │         1 │    0 │    0 │                 1 │
+│ 1 │ 0 │         0 │    1 │    0 │                 1 │
+│ 0 │ 1 │         1 │    0 │    1 │                 1 │
+│ 0 │ 0 │         1 │    1 │    1 │                 1 │
+└───┴───┴───────────┴──────┴──────┴───────────────────┘
 
 julia> @truthtable p q r
 

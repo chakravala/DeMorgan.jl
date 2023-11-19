@@ -22,7 +22,7 @@ module DeMorgan
 
 using AbstractLattices, StaticVectors, Requires
 
-import Base: OneTo, !
+import Base: OneTo, !, &, |
 import AbstractLattices: wedge,vee, ∧, ∨
 
 export TruthValues, Tautology, TruthTable, @truthtable
@@ -47,14 +47,15 @@ Base.show(io::IO,::Tautology) = print(io,'⊤')
 
 wedge(p::TruthValues{N},q::TruthValues{N}) where N = TruthValues{N}(p.p&q.p)
 vee(p::TruthValues{N},q::TruthValues{N}) where N = TruthValues{N}(p.p|q.p)
-
+Base.:&(p::TruthValues{N},q::TruthValues{N}) where N = p∧q
+Base.:|(p::TruthValues{N},q::TruthValues{N}) where N = p∨q
 -->(p::TruthValues{N},q::TruthValues{N}) where N = ¬(p)∨q
 <--(p::TruthValues{N},q::TruthValues{N}) where N = p∨¬(q)
 <-->(p::TruthValues{N},q::TruthValues{N}) where N = (p-->q)∧(q-->p)
-!(p::TruthValues{N}) where N = TruthValues{N}(p.p⊻(2^2^N-1))
+!(p::TruthValues{N}) where N = TruthValues{N}(p.p⊻(UInt(1)<<(1<<N)-UInt(1)))
 !(::TruthValues{0}) = ⊤
 !(::Tautology) = ⊥
-const ¬, →, ←, ↔ = !,-->, <--, <-->
+const ¬, →, ←, ↔ = !, -->, <--, <-->
 
 struct TruthTable{N,M}
     p::Values{M,UInt}
@@ -67,8 +68,8 @@ TruthTable{N}(p::UInt,s::String)  where N = TruthTable{N,1}(Values(p),Values(((s
 TruthTable{N,0}() where N = TruthTable{N,0}(Values{0,UInt}(),Values{0,Tuple{Vararg{String}}}(),0,0)
 
 Base.string(p::TruthTable) = p.n[p.i][p.j]
-function parstring(p)
-    s = string(p)
+parstring(p) = parstring(string(p))
+function parstring(s::String)
     if length(s) == 1 || !isnothing(match(r"^¬\(((?>[^\(\)]+)|(?R))*\)$",s))
         return s
     else
@@ -77,8 +78,8 @@ function parstring(p)
 end
 
 function select(n,N)
-    j = 2^(n-1)
-    sum([UInt(1)<<(((i-1)%j)+(2*j*((i-1)÷j))) for i ∈ OneTo(2^(N-1))])
+    j = 1<<(n-1)
+    sum([UInt(1)<<(((i-1)%j)+(2*j*((i-1)÷j))) for i ∈ OneTo(1<<(N-1))])
 end
 select(N) = select.(Tuple(OneTo(N)),N)
 extend(n,N) = (n...,Tuple(fill("",N))...)
@@ -89,12 +90,14 @@ macro truthtable(names...)
     Expr(:block,Expr.(:(=),esc.(names),p)...,nothing)
 end
 
+Base.:&(p::TruthTable{N},q::TruthTable{N}) where N = p∧q
+Base.:|(p::TruthTable{N},q::TruthTable{N}) where N = p∨q
 function !(p::TruthTable{N,M}) where {N,M}
     np = !TruthValues{N}(p.p[p.i])
     combine(p,np,("¬($(p.n[p.i][end]))",))
 end
 
-tautology(n) = 1<<(1<<n)-1
+tautology(n) = UInt(1)<<(1<<n)-UInt(1)
 istautology(n::UInt,N::Int) = n==tautology(N)
 
 combine(p::TruthTable{N},r,n) where N = combine(p,TruthTable{N,0}(),r,n)
@@ -143,9 +146,15 @@ function combine(p::TruthTable{N,P},q::TruthTable{N,Q},r,n) where {N,P,Q}
 end
 
 for (op,sym) ∈ ((:wedge,'∧'),(:vee,'∨'),(:-->,'→'),(:<--,'←'),(:<-->,'↔'))
-    @eval function $op(p::TruthTable{N,P},q::TruthTable{N,Q}) where {N,P,Q}
-        r = $op(TruthValues{N}(p.p[p.i]),TruthValues{N}(q.p[q.i]))
-        m = combine(p,q,r,("$(parstring(p))$($sym)$(parstring(q))",))
+    @eval begin
+        $op(p::TruthValues{0},q::TruthValues{N}) where N = $op(TruthValues{N}(p.p),q)
+        $op(p::TruthValues{N},q::TruthValues{0}) where N = $op(p,TruthValues{N}(q.p))
+        $op(p::Tautology,q::TruthValues{N}) where N = $op(TruthValues{N}(tautology(N)),q)
+        $op(p::TruthValues{N},q::Tautology) where N = $op(p,TruthValues{N}(tautology(N)))
+        function $op(p::TruthTable{N,P},q::TruthTable{N,Q}) where {N,P,Q}
+            r = $op(TruthValues{N}(p.p[p.i]),TruthValues{N}(q.p[q.i]))
+            m = combine(p,q,r,("$(parstring(p))$($sym)$(parstring(q))",))
+        end
     end
 end
 
